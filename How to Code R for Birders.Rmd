@@ -1,0 +1,656 @@
+---
+title: "R for Birders"
+author: "Sarah Toner"
+date: "7/13/2019"
+output: 
+  html_document:
+    toc: TRUE
+    toc_float: TRUE
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Getting Started
+
+This HTML is made with R Markdown, a type of document that can make PDF and HTML documents with embedded code chunks. For instances where I want a lot of explanatory text, R Markdown is more convenient than the thousands of # symbols I would need to put all the info in the code comments.
+
+You can copy and paste code from these gray code blocks into your R console. You're welcome to use this code for any of your projects, or distribute this document to anyone who wants to learn.
+
+I've included a cleaned-up version of some eBird barchart data (for Arizona) to mess around with. After I downloaded the data from eBird, I made a few edits in Excel--I added a row with week numbers, deleted the month row, deleted the excess rows at the beginning, and changed the format of the cells from "general" to "text" for species names and to "numbers" for frequencies. This helps R read the data in more easily.
+
+### Downloading R
+
+You'll want to download both R, the statistical/computing software, and RStudio, software that provides a more user-friendly interface. You can get instructions here: http://www.sthda.com/english/wiki/installing-r-and-rstudio-easy-r-programming
+
+### Working Directory
+First off, you'll want to set your working directory, which tells R where to look for the data. I recommend making a folder on your Desktop named "R" and making it your working directory. If you made an R project when you opened RStudio (which I recommend that you do--it keeps information for a given research project in one place), the folder you created is your working directory. If you didn't, here's some code to set your working directory. It will look different for Windows/Linux--Google how to find the right file path for your operating system. In RStudio, you can also do this by selecting the folder in the "Files" tab in the bottom right, selecting "More", and choosing "Set Working Directory."
+
+
+```{r cars}
+#setwd("~/Documents/eBirdwkshp/R for Birders")
+
+# the hashtag symbol (actually called an octothorpe) is used to add comments in the code. 
+# Anything following a # on a line will not be read as code.
+# 
+# At some points in this document, you will need code that's tagged out (for example, installing packages). Just delete the # when pasting the lines into your own code.
+
+```
+Once you've set the working directory, import your data. If you didn't set your working directory, you can also put the full file path in, like "/Users/yourname/Desktop/R/ebird_US-AZ__1900_2019_1_12_barchart.txt".
+
+```{r}
+bardata <- read.delim("ebird_US-AZ__1900_2019_1_12_barchart.txt") # " " indicate character text
+head(bardata) # head is a useful function for seeing the first ten rows of your data
+```
+## How R Works
+
+The basic unit is a dataframe, which is basically a spreadsheet. Each row is a unit of measurement (say, a species), and each column is an attribute that the units have (the frequency of any species in the first week of July). You use functions (which look something like "name()") to change your data (placed within the parentheses) and save them as new objects (the name to the left of the <- symbol).
+
+new <- action(old)
+
+## Subsetting (Selecting part of your data)
+
+You can select just a column by typing "data$columnname." Columns and dataframes can't have spaces or start with numbers; if you have bad column format when you import, R will change the names a bit to make them neat. RStudio will often prompt you with potential columns after you type the dollar sign.
+
+```{r}
+head(bardata$Species)
+```
+
+
+Selecting a row is a bit trickier. The syntax "data[a,b]" will pull a chunk of your data. Replace a with row numbers to select rows; replace b with column numbers to select columns. If you want to select all rows or all columns, leave it blank. You can also combine $ notation and the brackets--just remove the comma because you've already selected a column.
+
+```{r}
+bardata[1,] # row 1
+
+head(bardata[,1]) # first ten rows of column 1
+
+bardata[1,1] # the cell at row 1, column 1
+
+bardata$Week1[50] # fiftieth row of just Week1
+bardata[50,2] # same as above
+
+```
+
+Challenge question:
+
+Find what species of bird is in the 500th row.
+
+If you need to select more than one row or column, there are two shortcuts:
+
+* 1:15 will return all the numbers 1 through 15. Handy for numbering large quantities of things or selecting large blocks of rows or columns. 
+* c() creates a list. For example, to select columns 1,3, and 6, you would write [,c(1,3,6)].
+
+If you want to remove a row or column, put a - sign before the number or c() function.
+```{r}
+newbardata <- bardata[,-c(2)] # removes second column
+```
+
+
+
+## Preparing Data for Analysis
+
+Here are some functions to look at simple summaries of your data.
+```{r eval = FALSE}
+View(bardata) #View creates a new window where you can see the full dataset--useful for knowing what you're working with. It can make your window run slow if you use large dataframes, however!
+```
+
+```{r}
+# Statistics
+
+mean(bardata$Week1) # mean
+sd(bardata$Week1) # standard deviation
+median(bardata$Week1) # median
+max(bardata$Week1) # maximum; minimum is the same syntax
+
+```
+
+## Subsetting Data with Piping
+
+Subsetting is a pretty common question. Let's say you want to compare how abundances of different Spizella sparrows change from May through October. With our broad dataset, we need to subset two things: select only Spizella sparrows, and select only the weeks of May-October.
+
+There are a couple of ways to subset. One way uses the brackets notation with the which() function to return rows; I do this sometimes, but it's rather frustrating and I always forget the syntax. My preference is the package dplyr, which is also a really good introduction to piping.
+
+First, get the package. Packages are sets of useful functions that supplement the pre-existing ones you downloaded with R (those are called "base" R). Dplyr is part of the tidyverse family of packages, which is a really nice set of packages for efficiently handling and visualing data. We can download it with the rest of the tidyverse.
+
+```{r}
+#install.packages("tidyverse") # only need to run this once on your computer; this is how you install a package
+library(tidyverse) #run this each time you open R--it tells R to recognize the functions in the package
+```
+
+Piping is like changing the order of a sentence. If you want to run multiple functions on the same dataset, it's faster and easier to use piping than to make a bunch of different objects in series.
+
+Instead of doing: 
+
+new <- functionA(old)  
+new2 <- functionB(new)  
+new3 <- functionC(new2)
+
+Piping lets you do:
+
+new3 <- old %>%   
+  functionA() %>%   
+  functionB() %>%   
+  functionC()
+  
+There's no need to put your original object inside the function. Here's an example of subsetting for our Spizella subset. In this case, brackets is actually easier for handling the week columns, so we'll only use dplyr for the first filter and use the brackets to select the right weeks.
+
+```{r}
+spiz <- bardata %>% 
+  filter(Species == "Chipping Sparrow" | Species == "Clay-colored Sparrow" | Species == "Brewer's Sparrow" | Species ==  "Black-chinned Sparrow" | Species == "Field Sparrow")
+# The straight bar | (look below the delete key) means "OR". The = = means "equal to" for characters or factors--not the same as being mathematically equivalent (which is expressed with just one =). These are called logical operators, and you can google a list of them if you need more. & is another common one. %in% is another useful one--if I had a list of the sparrow names handy, I could have just made a vector out of those and then used Species %in% vector. It basically means "select those that match any of these variables in this here vector"
+# 
+# This is not the most elegant way to select this many rows--for this, writing the equivalent using brackets would be about as difficult. There are multiple ways to solve every problem! But I like filter because it's really easy to conceptualize and if you want to select all of the rows with a single criteria, it is much easier than brackets.
+# 
+# May starts at Week 17 and Oct ends Week 40, so columns 18 to 41 (I just looked in the data for those numbers); including column 1 preserves the species names
+spiz <- spiz[,c(1,18:41)]
+
+head(spiz)
+```
+
+Now we have a subsetted dataset!
+
+## Handling Dates
+
+There are several ways to handle dates. They're all pretty similar and do the same functions, except for a few minor things (handling time zones, etc.). I usually use strf/strptime. You can find a key to the time functions here, which I find really helpful: 
+
+[link] (https://www.stat.berkeley.edu/~s133/dates.html)
+
+
+Let's try a different dataset--some of my bird observations in northern Michigan. Yes, these are some of my real eBird checklists from one summer.
+
+Import the dataset:
+
+```{r}
+ebird <- read_csv("Example_eBirddata.csv")
+```
+
+Start working with a date variable. Let's say we need to select only observations during the month of June, re-format the date for some Americans, and select only observations starting between 7 and 10am.
+
+```{r}
+tme <- strptime(ebird$Date, format = "%Y-%m-%d") #save it as a temporary object; you can save it as its own column in the dataframe, but that can cause problems with certain analyses
+
+#pull the month numbers
+ebird$month <- strftime(tme, format= "%B")
+
+#now it's just a matter of subsetting to just get June
+Junerecs <-
+  ebird %>% 
+  filter(month == "June")
+```
+
+If it seems like I'm emphasizing subsetting a lot, that's because it's really common. Nearly every analysis will need subsetting at the start, sometimes multiple complex subsets, and it's hard to learn and easy to screw up. The more practice you get, the better.
+
+Now to re-format the date for some Americans who use month/day/year:
+```{r}
+ebird$Amdate <- strftime(tme, format = "%m/%d/%y")
+head(ebird$Amdate)
+```
+Easy-peasy.
+
+Lastly, subsetting time. strftime/strptime can handle time, unlike as.Date, so they're a good all-around choice for date/time functions. They can handle time zones too, if you need them. 
+
+```{r}
+# the package I used to read in the data assigned its own way of handling times to the column, so I have to convert it back to character representation since I don't want to learn a new system
+ebird$Time <- as.character(ebird$Time)
+
+#use strptime as usual
+tms <- strptime(ebird$Time, format="%H:%M:%S") #you can save it as a separate object or as a column. I like a column because there's no way you can get the rows misaligned, but it can screw up certain functions
+
+#subset: get the hour
+ebird$hr <- strftime(tms, format = "%H")
+
+ebird$hr <- as.numeric(ebird$hr) #convert back to number
+
+morningrecs <-
+  ebird %>% 
+  filter(hr %in% c(7:10)) #subset
+
+head(morningrecs$Time) #confirm subset worked!
+```
+
+
+## Visualizing Data with ggplot2
+
+Base R comes with a few simple plot functions--the two most common are plot() and hist() (histogram). They work pretty well! They're simple, easy to use, and will do the trick in a pinch. 
+Basic syntax:
+plot(x, y) 
+
+OR 
+
+plot(y ~ x)
+
+Both work. You can also add the item "data = dataframe" and then only have to write column names.
+
+Additional arguments (information set off by commas) you can add include:  
+* xlab = "X axis Label"  
+* main = "Main Title" 
+* ylab = "Y axis Label"  
+* pch = number indicating symbol of points  
+* cex = a scalar controlling text size  
+
+```{r}
+plot(morningrecs$Count ~ morningrecs$hr, xlab = "Hour", ylab = "Count", pch= 15)
+```
+
+
+However, if you want to go beyond and make more complex graphics, everyone will guide you to ggplot (remember the tidyverse? ggplot is the graphing function of choice in the tidyverse).
+
+I am... a beginner at ggplot. It uses its own language, a language of "aesthetics". It's extremely powerful and I can get it to work usually, but I always need to reference some outside sources. So here is one of my most useful outside sources:
+
+[link] (https://www.rstudio.com/wp-content/uploads/2015/03/ggplot2-cheatsheet.pdf)
+
+Let's try plotting the start times of these checklists against the number of species they have. Ready for more subsetting? This time, we're going to use the summarize (or summarise if you're British, they both work) function in dplyr. It's almost too easy to be true.
+
+```{r}
+# we need the number of species in each checklist. Since we know each species is only repesented in one row in each checklist, we can shortcut this by grouping by the checklist ID number and then counting the number of rows. These shortcuts can save you time, but just remember that they'll fail if you have duplicate rows or other data quality issues.
+# 
+
+divplot <-
+  ebird %>% 
+  group_by(`Submission ID`,Time) %>% 
+  summarize(species = n()) # n() is used for counting total numbers.
+```
+Other functions that can be thrown into summarize() include sum(variable), mean(variable), etc. Because you've specified the group, it will perform the function within the categories of that group. 
+
+Note that I used multiple groups--since they're synonymous (each submission ID has an independent time) it just combined them, but if you used ones that had different combinations, it would summarize across the different combinations of those groups (e.g. date and color could give you the mean for variables with Monday-Red, Monday-Blue, Tuesday-Red, and Tuesday-Blue).
+
+```{r}
+#next, convert to POSIX with strptime (ggplot2 only works with POSIXct)
+divplot$hour <- as.POSIXct(divplot$Time, format = "%H:%M:%S")
+
+```
+Now time for ggplot. It's already loaded from when we loaded tidyverse at the beginning.
+
+ggplot is additive, so you can start with a basic "plot" and then add on things by adding functions with + symbols. It's nice to start with a bare-bones plot and then make it fancier with different themes, legends, etc.
+
+Put your x and y in the "aes()" function *within* "mapping = ". Then, add another function using the + sign to show how you want that to be represented. The link at the start of this section is a really good guide to what plotting options you have for one, two, or three variables. In this case, we're using geom_point, which makes points.
+
+```{r}
+ggplot(data = divplot, mapping = aes(Time, species)) + #this is the base--data, your x and y in the aes
+  geom_point() #this can take more arguments, but merely supplying it tells ggplot you want points 
+
+#that x axis is... not helpful
+#this is where add-ons come in
+
+
+# same base! It thinks the date is today, but we can just disable that display
+ggplot(data = divplot, mapping = aes(hour, species)) + 
+  geom_point() +
+  scale_x_datetime(date_breaks="4 hour", date_labels="%H:%M") #adding scale can make your graph a lot tidier.
+
+```
+
+Let's spruce this graph up, shall we? Note that the first three lines are the same.
+```{r}
+library(ggthemes)
+
+ggplot(data = divplot, mapping = aes(hour, species)) + 
+  geom_point() +
+  scale_x_datetime(date_breaks="4 hour", date_labels="%H:%M") +
+  theme_wsj() + #this changes the whole theme to match the Wall Street Journal. There are a bunch of fun ones!
+  xlab("Time of Day") + # ALWAYS LABEL YOUR AXES
+  ylab("Number of Species Detected") + # ALWAYS LABEL YOUR AXES
+  ggtitle("Species Richness Throughout Day")
+```
+
+If you read the Wall Street Journal, this matches the formatting of their graphs! There are a bunch of fun themes, including one that matches basic R "Plot" functions. When you're publishing research, it's important to have consistent figure themes, so if you're using both basic plot and ggplot, I recommend using that theme for ggplot to make them look matching.
+
+Lastly, since it's additive, you can easily mess around with themes without copying and pasting like I did. Just save the core graph as an object and play with it from there.
+
+```{r}
+g <- ggplot(data = divplot, mapping = aes(hour, species)) + 
+  geom_point() +
+  scale_x_datetime(date_breaks="4 hour", date_labels="%H:%M")
+
+g +   theme_economist() + #this changes the whole theme to match the Economist
+  xlab("Time of Day") + # ALWAYS LABEL YOUR AXES
+  ylab("Number of Species Detected") + # ALWAYS LABEL YOUR AXES
+  ggtitle("Species Richness Throughout Day")
+```
+
+I recommend digging into ggplot resources if you want to explore it more! Faceting, for example, is a really useful element that I use a lot to graph multiple categories of a variable at once.
+
+## A note on working with character strings (text)
+
+I'm including this just because I google it a lot--if you're familiar with Excel or Google Sheets, str_sub does the same thing as LEFT and RIGHT. It basically selects part of a string based on the start and ending positions. Use negative numbers for RIGHT and positive numbers for LEFT.
+
+```{r}
+nam <- str_sub(ebird$`Common Name`,1,5) # first through fifth characters
+head(nam)
+
+nam <- str_sub(ebird$`Common Name`, 1, -3) # first through third-to-last characters
+head(nam)
+
+nam <- str_sub(ebird$`Common Name`, -5, -3) # fifth-to-last through third-to-last characters
+head(nam)
+```
+
+
+# Next Steps
+
+## A note on Stats
+
+R is primarily a statistical programming language, and once you've figured out how to subset the data, you can start doing stats on it. However, as much as I'd like to, I can't turn this into a course in AP Stats/Biostats 101/Introduction to zero-inflated negative binomial regression/all the other statistics topics I could go into.
+
+There are lots of online resources that basically walk you through college-level stats classes, and I think Khan Academy offers some as well. Fortunately, once you learn a statistical topic like Poisson regression, usually all you have to do to learn how to do it in R is google "Poisson Regression r." People are constantly building new packages for oddly specific statistical models--the package "unmarked", for example, runs Single and Multi-season Occupancy Models based on repeated or non-repeated surveys of unmarked individuals. Those models are basically tailor-made for point counts, and with the R package it just takes a few lines to run a very complicated mathematical model.
+
+In many respects, this makes statistics in R really easy. Linear regression? One line. Quasipoisson regression? One line. Single Season Occupancy model? It's actually a couple of lines of setup, but the model itself is one line.
+
+On the other hand, it can make the actual statistics seem like a black box. What does the magical glm function do? Who knows. So you do need to know what's going on under the hood, and you get that knowledge from a statistics course.
+
+If you would like help with any statistical idea, feel free to email me. It would take way too much effort to try to type my entire statistical background here, but in response to specific questions I'm happy to give an explainer.
+
+Also disclaimer: I'm not a statistician! I still have to google "Assumptions for linear model." But I'm happy to reference my Biostats notes and pass information on and help you conceptualize and understand it.
+
+With that said... once you have a basic background in statistics, here is how to manage it in R.
+
+
+
+Once you know roughly how a statistical model works, the syntax in R is easy, and pretty uniform:
+
+modelfunction(response variable ~ predictor1 + predictor2 + predictor3, data = dataframe)
+
+That's true for nearly every model I've run.
+
+Some handy statistical models R can run:
+
+* Linear models  
+* ANOVA  
+* two-sample t tests and nonparametric equivalents  
+* Generalized Linear Models (GLMs), including logistic (probabilities), poisson (count data), and several other families  
+* Classification and Regression Tree Models and RandomForests (the latter is a very powerful modeling tool in some contexts)  
+* Unmarked Occupancy Models  
+* probably some genetics models I don't know  
+* even more!  
+
+All of the ones listed above use the same formula structure above.
+
+## Running an analysis
+
+Let's see if we can model the relationship between time of day and number of species that we graphed in the ggplot section.
+
+First, I'm going to convert the time into minutes past midnight. If this were a real analysis, you would want to get sunrise times and calculate minutes past sunrise. Converting it into a single numerical response simplifies the analysis and makes sure the model isn't getting confused by what time is.
+
+```{r}
+divplot$min <- (as.numeric(strftime(strptime(divplot$Time, format = "%H:%M:%S"), format = "%H")) * 60) + as.numeric(strftime(strptime(divplot$Time, format = "%H:%M:%S"), format = "%M")) #hour times 60 + minutes
+```
+Now, let's try a linear model. This can work because we have two continuous variables--number of species and minutes past midnight.
+
+```{r}
+m1 <- lm(species ~ min, data=divplot) # you have to save the model as an object; otherwise, it prints some info but you can't do anything more with the model because it isn't saved.
+summary(m1) # summary prints the results table.
+
+#check assumptions
+plot(m1)
+```
+The normal Q-Q plot looks fine, but the residuals don't look great. Let's try filtering out some bad data that may be screwing things up--the incidentals with only one species.
+
+```{r}
+# subsetting again
+
+divplot2 <- 
+  divplot %>% 
+  filter(!species == 1) # I use the ! to indicate a negative 
+
+# re-run the model
+m2 <- lm(species ~ min, data=divplot2)
+summary(m2)
+
+#check assumptions
+plot(m2)
+
+```
+The residual plot and normal Q-Q plot don't look that bad. I would conclude that minutes past midnight doesn't have a significant impact on species diversity with this dataset.
+
+However, if we want some more advanced stats, we'd probably try doing a Poisson instead. Species isn't really continuous--you can only have integer values from 0 up. This is best modeled using a Poisson distribution, using the Generalized Linear Models function (glm).
+
+```{r}
+m3 <- glm(species ~ min, data=divplot2, family = poisson)
+summary(m3)
+```
+Now, one assumption of the poisson distribution is that the mean and variance of the population are the same. If the residual deviance is significantly larger than the degrees of freedom, this assumption may not be correct--this is referred to as overdispersion.
+
+Statisticians are still kind of arguing over what to do about overdispersion, but one way to handle it is to use quasipoisson. 
+```{r}
+m3 <- glm(species ~ min, data=divplot2, family = quasipoisson)
+summary(m3)
+```
+Quasipoisson adds a scaling factor that tries to adjust for overdispersion.
+
+In any case, running these analyses all had the same result--for these complete checklists, time after midnight did not have a significant effect on the number of species detected. Doing the fancier stats of poisson and quasipoisson didn't change the result. Remember the cliche--"All models are bad; some models are useful." Models approximate the real world, but they don't correctly represent it, so there may be no "one right model." You can dive into the world of model selection to figure out the best of the flawed models--but that's another subject entirely.
+
+Some tips:
+
+If you want to combine data from different dataframes, just eliminate the "data =" term and use the dataframe$column format in the response/predictor variables. Make sure your variables are in the same order! 
+
+summary() usually gives you the output tables. Plot() can usually give you summary plots. The package "car" has some better visualizations for residual plots.
+
+You can subset outputs! For example:
+
+```{r}
+#get the estimated coefficient for min
+#
+m2$coefficients[2]
+
+# get the residuals 
+head(m2$residuals)
+
+#get p-values
+summary(m2)$coeff[,4]
+
+```
+
+
+
+## For-loops
+
+Here’s something you may have noticed: in many cases, you can ‘batch-edit’ R objects. Here’s an example: 
+
+
+```{r}
+test <-c(1,2,3,4)
+test*4
+test
+```
+
+each individual number was multiplied by four. You didn’t need to type:
+
+test[1]$*4$
+test[2]$*4$...
+
+etc.
+
+However, sometimes there’ll be times when you want to perform repeated operations too complex for R’s built-in functions that can support this kind of iteration. If you find yourself needing to copy and pasting something a ton and change one digit each time, keep reading and use a for-loop instead.
+
+### What is a for-loop?
+
+A for-loop just tells R to repeat a process a certain number of times. Each time, you can have it work with different variables by using what number iteration it’s going through. The syntax is below:
+
+for(a given number in the sequence 1:end number) {  
+    do things that reference the given number in some way  
+}
+
+Really vague, right? It's easier to learn by example.
+
+My example will be a for-loop of the multiplication by four above. It’s unnecessary since the R functionality is simpler and faster, but it’s a good basic example.
+ 
+```{r}
+test <- c(1,2,3,4)
+for (i in 1:4) {
+	print(test[i]*4) # this multiplies, as above. Put the functions you want to get done between the curly brackets
+}
+
+```
+
+
+As the for loop runs, the i will change in value from 1 to 4. It’ll be calling items one through four of the test vector and multiplying them by four.
+
+Some notes:  
+*	i is just a dummy variable—you can use any letter or name you want. It’s possible to nest for-loops inside each other, and then you’ll want to choose a different variable for each nested for-loop—I usually choose i-j-k.  
+*	You don’t have to start with 1. If you want to run the dates 1964-2000, just use 1964:2000. It’ll only run the numbers between 1964 and 2000 (inclusive)--37 times. This can work with any sequence of numbers that contains the : symbol.  
+*	A handy way to end is to end with the number of rows of your data frame (function nrow() ). Using 1:nrow(df) works just as well as any number. It'll break if you try to feed a dataframe with no rows--but why would you be doing that?  
+
+Printing the results is great for some purposes, but how do you save them? For-loops are annoying, since you have to write so your output data isn’t be overwritten by the next iteration of the for-loop. I usually use something like this:
+
+```{r eval=FALSE}
+for (i in 1:4) {
+	output[i] <-test[i]*4
+}
+```
+
+
+By using i to define the row number of the output vector, I fill in the output data one row at a time as the for-loop iterates.
+	
+You’ll usually need to set up your output vectors/dataframes in advance, as they often fail or take forever if you haven’t defined them outside the for-loop. You can set up a blank dataframe or vector either of the ways below:
+
+```{r eval=FALSE}
+output <- data.frame(test = as.numeric()) #using blank data frames sometimes does and sometimes doesn’t work for me. I don't know why.
+output <- vector(mode = "numeric", length = nrow(df)) # mode is your class—-numeric, character, factor, Date, etc. The length should be as long as the for loop.
+
+```
+
+
+I always struggle with this and my outputs are constantly getting screwed up, so sometimes I cheat and use a package called magicfor. Basically, you call the magic_for() function just before the for-loop with the name of a given function. When you run the for-loop, any output from the specified function will be saved into a data frame, which you can get after the for-loop is done by calling the magic_result_as_dataframe() function. It’s nifty and saves me some time, especially if I can't figure out why my blank data frame isn't working, but I think it takes too long on big for-loops. Use it with caution.
+
+What are for-loops good for? A surprising number of things. Here’s an example from some of my research. This one’s pretty messy, but it shows how much work for-loops can save you. Don’t worry about the details of which functions I used—if you want more info on raster files and spatial data, see the GIS section.
+```{r eval=FALSE}
+for (i in 36:52) {
+#import raster and reproject
+  ES.ext <- raster(paste("Ensemble Support Ext Wk ", i,".tif", sep="")) 		# week number used here, to change the name of the file being imported
+
+#convert spatial to a dataframe
+  ES.ext<- as.data.frame(ES.ext, xy= TRUE)
+  ES.ext$week <- i 			# week number used here to add an identifier to the dataframe
+  
+  ES.ext$sup <- ES.ext[,3]
+  ES.ext <-ES.ext[which(ES.ext$sup==1),]
+  
+  ES.ext$x <- as.integer(ES.ext$x)
+  ES.ext$y <- as.integer(ES.ext$y)
+  
+  temp <-model.df2[((model.df2$week == i) & (model.df2$x %in% ES.ext$x) & (model.df2$y %in% ES.ext$y)), ] 	# week number used here--this is a bit complicated but basically I'm only selecting data that is covered by the initial area (raster) I imported.
+  model.df4 <- rbind(model.df4,temp) #this adds the results to the bottom of a dataframe that gets bigger as the loop runs--an inefficient way to save results, but it does work
+}
+```
+
+I needed to import a whole series of raster files and perform the same functions on each. If I didn’t use a for-loop, I would have been copying and pasting those lines of code 16 times and changing the numbers in each-—which I actually did at first, before I decided it was finally time to learn for-loops. 
+
+The particular thing that frustrated me with copying and pasting was that I had to keep track of which week I was working in, based on a number from 36:52. When I copied and pasted, I had to change the week number in three different places. If I forgot to change one place, I’d have to start over. Instead of manually changing the week numbers, I chose to iterate the for-loop over the week numbers (36:52). Saved a lot of time and frustration.
+
+My biggest challenge in writing for-loops is how to get the i value to do what I want. Here are three ways I’ve used it:  
+*	Simply using i as an indexing value: df[i] or df[i+5], etc. Good if you're using row numbers.  
+*	Using it in a character string using the handy function paste(), as in the example above, where I made character strings of the file names to read in the files. Good for working with characters or labeling things.  
+*	In a which call: df[which(df$var = i),]. Good for making i represent some meaningful number or category.  
+
+
+
+## GIS--Let's Get Spatial
+
+Spatial data is an entire world of analysis and R. It's pretty important to know the basics for many bird analyses, since they do move around.
+
+Spatial data is data that is multidimensional in some space. When that space is referencing geographic locations in the world, it's called GIS, or Geographic Information Systems. The terms spatial/GIS are often used interchangeably, and the methods are basically the same.
+
+There are software programs like ArcGIS and QGIS that explicitly handle spatial data. They have better user interfaces and are easier to use at first, but R can do anything those can. ArcGIS costs a lot and doesn't run on Macs, but is the commonly used one in professional settings; QGIS is an open-source version of Arc that's free and available for Macs and Windows. I do recommend using QGIS for some things when you're starting out because it really helps to be able to visualize what's going on, but once you get the hang of how spatial data works R will be easier. R's extract() function, for example, which I use in nearly every research project I do, is actually way easier than QGIS's.
+
+Spatial data comes in two main categories: rasters and vectors.
+
+Rasters are gridded. Think of the grids as pixels in a photo--indeed, you can store raster files as photos! Any point within a single grid cell will have the same value. It's commonly used for data like temperature, precipitation, and land cover.
+
+Vectors include points, lines, and polygons--they don't have grid cells. 
+
+Different datasets work better with one category or another. You'll often be working with both rasters and vectors. For example, for my point count locations I get information about the temperature (which is from a raster file) by extracting the value in the raster cell at a specific series of points, which are stored as vectors. This requires overlaying two different files--the raster and the points.
+
+
+First, some packages. Raster handles rasters, obviously. Rgdal handles vectors.
+
+```{r}
+#install.packages("raster","rgdal")
+library(raster)
+library(rgdal)
+```
+
+### Importing files
+You can find a lot of spatial data available free online! For this tutorial, I'm using a raster I created of the average minimum January temperature measured by the MODIS Land Surface Temperature (LST) satellite. I calculated these averages, but you can get the data for free. Some other free spatial data include the National Land Cover Dataset (NLCD) ([link] (https://www.mrlc.gov/data/nlcd-2016-land-cover-conus)) and NOAA's North American Regional Reanalysis (NARR) ([link] (https://www.ncdc.noaa.gov/data-access/model-data/model-datasets/north-american-regional-reanalysis-narr)), which is a set of weather data. NLCD comes in an easy-to-use raster, but NARR can be a pain to handle as spatial data--email me if you want info and code for handling the netCDF files in R!
+```{r}
+lst <- raster("Example Jan Temperatures.tif")
+basemap <- readOGR("/Users/jaymacbook/Documents/eBirdwkshp/R for Birders")
+#readOGR can be a pain because it's sensitive to names and file paths. Email me your code if you have trouble with it.
+# vector data will appear in your computer as a whole set of files with the same name but different extensions--.shp, .dbf, .prj, etc. These are all important parts of the vector data and if you delete any, the vector data may lose information associated with it. They should all be in the same folder together.
+
+```
+
+Once it's imported, you can plot it. R's basic plot function can handle maps just fine.
+
+```{r}
+plot(basemap)
+plot(lst, add=TRUE) #this is comically tiny, I know. Ideally you'd subset your basemap to be a better base map.
+
+```
+
+
+### Creating your own data from bird occurrence points
+
+In the example above I gave you my location data in the form of a spatial file. But what if we just have a list of lat/long coordinates?
+
+The coordinate reference system (CRS) is the key thing that defines spatial data. Since the Earth is a globe, there are a bunch of different ways to depict the Earth on a 2D map surface. Google Maps and many other purposes use the Mercator projection. I'm a big fan of the Conus Albers projection. There are thousands, though--if you're interested in mapping, google and you should find some intro GIS courses that explain the concept in more detail. Spatial files you import should have their own projection that will be automatically loaded. If you're using lat/long, it's the Mercator projection unless otherwise stated. Every CRS has a specific character string that defines the basic rules for that system, and R knows them. You can find the CRS string on google (ArcGIS and QGIS have them built-in too).
+
+```{r}
+coordinates(ebird) <- c("Longitude", "Latitude") #these are the column names--longitude first, then latitude
+proj4string(ebird) <-
+  "+proj=longlat +ellps=GRS80 +towgs84=0,0,0,0,0,0,0 +no_defs" # this character string defines Mercator, telling the computer what the lat/long are referring to
+
+#A Spatial Points Data Frame basically means it's points that have data associated with each point. Spatial Points are just points, and you can also get Spatial Polygons with/without dataframes. Polygons are 2D shapes (think country outlines, for example).
+#
+plot(ebird) #without a basemap this isn't very helpful
+```
+
+It's important to make sure datasets have the same projection before you start combining them, or else things will get wonky! To get the same coordinates, use the reproject function for rasters or SpTransform for vectors. In this example, we're transforming the vectors to the CRS of the raster.
+
+```{r}
+new <- spTransform(ebird,
+              CRS=proj4string(lst)) #proj4string gives the correct character string for spTransform
+```
+
+Now, for most point-based statistical analyses it's easiest to extract the raster values for each point and convert the data into a dataframe. Some models will let you input entire raster layers, but I haven't had much luck with that.
+
+R's extract function is great. The :: symbol below specifically tells R what package to look in for the function--the name "extract" is used for a function in the tidyverse as well as a function in the raster package, so this eliminates the confusion.
+
+```{r}
+lstvals <- raster::extract(lst, new) #you can use the "buffer" argument to extract the values within a given radius of the point. The units will be in the map units, which if you're using WGS84 datum or an equal-area projection will usually (but not always) be in meters, which is handy.
+
+head(lstvals) #note that this is Celsius, which is why it's negative
+ebird$lst <- lstvals # or you can save lstvals as a column in the first place
+```
+And then you're ready to put the dataframe into a model and compare lst with whatever other variables you want.
+
+## Some add-ons
+
+Congrats, you've made it to the end. Here are two very important packages to spice up your code:
+
+### memer
+
+Make memes. In R. 
+
+```{r}
+library(memer)
+
+meme_get("DistractedBf") %>% 
+  meme_text_distbf("tidyverse", "new R users", "base R")
+```
+
+It's a bit simplistic (not being able to change text size is an issue), but it is in active development so keep an eye on it.
+
+### beepr
+
+Good for putting at the end of a long code segment to let you know when it's done running. I recommend #5 and #9, depending on how many error messages you've gotten that day.
+```{r}
+#install.packages("beepr")
+library(beepr)
+mean(c(1:2000))
+beep(sound=5)
+beep(sound=9)
+```
+
+
+
